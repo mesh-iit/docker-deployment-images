@@ -66,7 +66,7 @@ RUN mkdir ${PROJECTS_DIR} && cd ${PROJECTS_DIR} &&\
         -DNON_INTERACTIVE_BUILD:BOOL=ON \
         -DROBOTOLOGY_ENABLE_CORE:BOOL=ON \
         -DYCM_USE_DEPRECATED:BOOL=OFF \
-        -DROBOTOLOGY_USES_GAZEBO=OFF \
+        -DROBOTOLOGY_USES_GAZEBO:BOOL=OFF \
         -DROBOTOLOGY_PROJECT_TAGS=${sbtag} \
         &&\
     # Build all the projects

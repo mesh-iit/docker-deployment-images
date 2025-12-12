@@ -60,6 +60,10 @@ jobs:
                   superbuild_flag=true
                   element_flag=true
                 fi
+                if [ "$line" == "[arm64]" ]
+                then
+                  element_flag=false  # Skip this image
+                fi
               done < $image_path/$element/conf_build.ini
               if [[ $element_flag == true ]]
               then
