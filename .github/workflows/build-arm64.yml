@@ -70,4 +70,4 @@ jobs:
           cache-from: type=registry,ref=${{ steps.meta.outputs.image }}:buildcache
           cache-to: type=registry,ref=${{ steps.meta.outputs.image }}:buildcache,mode=max
           build-args: |
-            START_IMG="nvcr.io/nvidia/l4t-jetpack:r36.4.0"
+            START_IMG=nvcr.io/nvidia/l4t-jetpack:r36.4.0
