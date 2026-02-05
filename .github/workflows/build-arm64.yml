@@ -47,7 +47,9 @@ jobs:
       - name: Extract metadata
         id: meta
         run: |
-          IMAGE_NAME="${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}"
+          REPOSITORY_OWNER="${{ github.repository_owner }}"
+          REPOSITORY_OWNER="martinaxgloria"
+          IMAGE_NAME="${{ env.REGISTRY }}/$REPOSITORY_OWNER/${{ matrix.image }}"
           VERSION="${{ github.ref_name }}"
           VERSION="latest"
           [[ "$VERSION" == "master" || "$VERSION" == "main" ]] && VERSION="latest"
