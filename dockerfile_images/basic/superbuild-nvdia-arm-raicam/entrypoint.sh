@@ -7,6 +7,7 @@ if [ -z "$(which setup_robotology_tdd.sh)" ] ; then
 fi
 
 source setup_robotology_tdd.sh
+source ros_entrypoint.sh
 
 echo "[ -r /usr/share/bash-completion/bash_completion   ] && . /usr/share/bash-completion/bash_completion" >> /root/.bashrc
 # Appends a conditional statement to the root user's bashrc file that sources the robotology TDD setup script

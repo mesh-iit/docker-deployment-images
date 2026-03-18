@@ -67,8 +67,9 @@ ENV LANG=en_US.UTF-8
 RUN locale  
 
 # Verify ubuntu universe repository is enabled
-RUN apt install -y software-properties-common &&\
-    add-apt-repository universe
+RUN apt-get update && apt-get install -y software-properties-common &&\
+    add-apt-repository universe && \
+    rm -rf /var/lib/apt/lists/*
 
 # Installing the ros2-apt-source package
 RUN apt update && apt install -y curl &&\
@@ -157,9 +158,9 @@ RUN apt-get update \
     libglu1-mesa-dev &&\
     rm -rf /var/lib/apt/lists/*
 
-RUN curl https://codeload.github.com/realsenseai/librealsense/tar.gz/refs/tags/v$LIBRS_VERSION -o librealsense.tar.gz 
-RUN tar -zxf librealsense.tar.gz \
-    && rm librealsense.tar.gz 
+RUN curl https://codeload.github.com/realsenseai/librealsense/tar.gz/refs/tags/v$LIBRS_VERSION -o librealsense.tar.gz \
+    && tar -zxf librealsense.tar.gz \
+    && rm librealsense.tar.gz
 RUN ln -s /usr/src/librealsense-$LIBRS_VERSION /usr/src/librealsense
 
 # Build and install
@@ -218,8 +219,7 @@ WORKDIR ${PROJECTS_DIR}
 RUN git clone https://github.com/kaidegast/yarp-device-rplidar.git
 
 WORKDIR ${PROJECTS_DIR}/yarp-device-rplidar
-RUN git checkout fix_sdk_missing_component && \
-    mkdir -p build && cd build && \
+RUN  mkdir -p build && cd build &&\
     cmake .. \
         -DENABLE_rpLidar:BOOL=OFF \
         -DENABLE_rpLidar2:BOOL=OFF \ 

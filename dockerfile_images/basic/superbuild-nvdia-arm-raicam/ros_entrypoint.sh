@@ -9,5 +9,3 @@ export GAZEBO_RESOURCE_PATH=${GAZEBO_RESOURCE_PATH}:/projects/robotology-superbu
 export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:/projects/robotology-superbuild/build/install/share
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/projects/robotology-superbuild/build/install/lib
 export ROS_DOMAIN_ID=42
-
-exec "$@"

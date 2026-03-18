@@ -8,7 +8,8 @@ on:
         required: false
         default: 'false'
   schedule:
-    - cron: '0 2 * * 0'  # Weekly on Sunday
+    # The job runs every two weeks
+      - cron: '0 0 1,15 * *'
 
 env:
   REGISTRY: ghcr.io
