@@ -177,7 +177,7 @@ RUN cd /usr/src/librealsense \
     -DBUILD_WITH_CUDA=ON \
     -DBUILD_PYTHON_BINDINGS=OFF \
     -DCMAKE_BUILD_TYPE=Release ../ \
-    && make -j$(($(nproc)-1)) all \
+    && make -j$(nproc) all \
     && make install 
 
 # Copy binaries 
@@ -215,8 +215,7 @@ RUN cd ${PROJECTS_DIR}/yarp-device-realsense2 &&\
 # # 5. RPLIDAR yarp device                                                      #
 # # --------------------------------------------------------------------------- #
 WORKDIR ${PROJECTS_DIR}
-# We need to temporarily clone a fork of the report since a critical fix related to CMakeLists of lidar4 has been made there but not yet merged in the original repo
-RUN git clone https://github.com/kaidegast/yarp-device-rplidar.git
+RUN git clone https://github.com/robotology/yarp-device-rplidar.git
 
 WORKDIR ${PROJECTS_DIR}/yarp-device-rplidar
 RUN  mkdir -p build && cd build &&\
@@ -261,7 +260,7 @@ EXPOSE 10000/tcp 10000/udp
 ENV QT_X11_NO_MITSHM=1
 ENV YARP_COLORED_OUTPUT=1
 
-RUN echo 'echo 'This images has release=$release and is built with superbuild_tag=$sbtag. Metadata=$metadata' '  >> ${METADATA_FILE} &&\
+RUN echo "echo 'This images has release=$release and is built with superbuild_tag=$sbtag. Metadata=$metadata'" >> ${METADATA_FILE} &&\
     echo "source ${METADATA_FILE}" >> ${ROBOTOLOGY_INITIALIZATION_FILE} &&\
     echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >>  ${ROBOTOLOGY_INITIALIZATION_FILE} 
 
