@@ -1,0 +1,5 @@
+# Xsens device rule
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2639", ATTRS{idProduct}=="0300", SYMLINK+="ttyUSB_xsens"
+
+# LiDAR device rule
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", SYMLINK+="ttyUSB_lidar"

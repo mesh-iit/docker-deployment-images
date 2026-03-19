@@ -134,7 +134,12 @@ jobs:
                       then
                           superbuild_flag=true
                           element_flag=true
-                      fi  
+                      fi 
+                      if ["$line" == "[arm64]"]
+                      then
+                          superbuild_flag=false
+                          element_flag=false
+                      fi 
                       if [ "$line" == "[sources]" ] || [ "$line" == "[binaries]" ] || [ "$line" == "[tag]" ] || [ "$line" == "[superbuild]" ] || [ "$line" == "[demos]" ] || [ "$line" == "" ]
                       then
                           children_flag=false
@@ -155,7 +160,7 @@ jobs:
                           echo "children found"
                           children_flag=true
                           children_image_flag=true
-                      fi  
+                      fi
                   done < $image_path/$element/conf_build.ini
                   echo $children_image_flag
                   if [[ $element_flag == true ]] 
