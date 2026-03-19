@@ -135,12 +135,12 @@ jobs:
                           superbuild_flag=true
                           element_flag=true
                       fi 
-                      if ["$line" == "[arm64]"]
+                      if [ "$line" == "[arm64]" ]
                       then
                           superbuild_flag=false
                           element_flag=false
                       fi 
-                      if [ "$line" == "[sources]" ] || [ "$line" == "[binaries]" ] || [ "$line" == "[tag]" ] || [ "$line" == "[superbuild]" ] || [ "$line" == "[demos]" ] || [ "$line" == "" ]
+                      if [ "$line" == "[sources]" ] || [ "$line" == "[binaries]" ] || [ "$line" == "[tag]" ] || [ "$line" == "[superbuild]" ] || [ "$line" == "[demos]" ] || [ "$line" == "[arm64]" ] || [ "$line" == "" ]
                       then
                           children_flag=false
                       fi
