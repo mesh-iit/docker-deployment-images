@@ -115,7 +115,7 @@ ENV CMAKE_PREFIX_PATH=${INSTALL_DIR}
 ENV GSL_ROOT_DIR=/usr
 ENV GSL_LIBRARY=/usr/lib/aarch64-linux-gnu/libgsl.so
 ENV GSL_CBLAS_LIBRARY=/usr/lib/aarch64-linux-gnu/libgslcblas.so
-ENV LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu
+ENV LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
 
 RUN bash -c "mkdir ${PROJECTS_DIR} && cd ${PROJECTS_DIR} &&\
     git clone https://github.com/robotology/robotology-superbuild.git --branch ${release} &&\
@@ -131,7 +131,6 @@ RUN bash -c "mkdir ${PROJECTS_DIR} && cd ${PROJECTS_DIR} &&\
         -DGSL_LIBRARY=/usr/lib/aarch64-linux-gnu/libgsl.so \
         -DGSL_CBLAS_LIBRARY=/usr/lib/aarch64-linux-gnu/libgslcblas.so \
         -DCMAKE_PREFIX_PATH=\"/opt/ros/${ROS_DISTRO}:${INSTALL_DIR}\" \
-        -DCMAKE_PREFIX_PATH=\"/opt/ros/${ROS_DISTRO}:/projects/robotology-superbuild/build/install\" \
         -DCMAKE_INSTALL_PREFIX=/usr/local \
         -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
         -DROBOTOLOGY_PROJECT_TAGS=${sbtag} \
@@ -179,7 +178,7 @@ RUN cd /usr/src/librealsense \
     && cmake \
     -DCMAKE_C_FLAGS_RELEASE="${CMAKE_C_FLAGS_RELEASE} -s" \
     -DCMAKE_CXX_FLAGS_RELEASE="${CMAKE_CXX_FLAGS_RELEASE} -s" \
-    -DCMAKE_INSTALL_PREFIX=/opt/librealsense\  
+    -DCMAKE_INSTALL_PREFIX=/opt/librealsense\
     -DCHECK_FOR_UPDATES=OFF \
     -DBUILD_EXAMPLES=OFF \
     -DFORCE_LIBUVC=ON \
