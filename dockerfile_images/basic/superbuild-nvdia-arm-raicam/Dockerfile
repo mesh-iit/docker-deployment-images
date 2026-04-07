@@ -4,7 +4,7 @@ ARG START_IMG="none"
 ARG METADATA_FILE=/usr/local/bin/setup_metadata.sh
 ARG PROJECTS_DIR=/projects
 ARG INSTALL_DIR=${PROJECTS_DIR}/robotology-superbuild/build/install
-ARG release="v2025.02.0"
+ARG release="v2025.11.1"
 ARG sbtag="Custom"
 ARG ROBOTOLOGY_PROJECT_TAGS_CUSTOM=${PROJECTS_DIR}/robotology-superbuild/releases/${release}.yaml
 ARG metadata="data"
@@ -42,6 +42,8 @@ RUN mkdir -p /etc/bash_completion.d/ && \
         wget \
         apt-transport-https \
         ca-certificates \
+        libgsl-dev \
+        libgsl27 \
         vim &&\
     update-ca-certificates
 
@@ -110,6 +112,10 @@ source /opt/ros/${ROS_DISTRO}/setup.bash" >> /root/.bashrc
 
 # The bashrc is read only when opening an interactive shell. Let other projects find packages contained in the superbuild.
 ENV CMAKE_PREFIX_PATH=${INSTALL_DIR}
+ENV GSL_ROOT_DIR=/usr
+ENV GSL_LIBRARY=/usr/lib/aarch64-linux-gnu/libgsl.so
+ENV GSL_CBLAS_LIBRARY=/usr/lib/aarch64-linux-gnu/libgslcblas.so
+ENV LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
 
 RUN bash -c "mkdir ${PROJECTS_DIR} && cd ${PROJECTS_DIR} &&\
     git clone https://github.com/robotology/robotology-superbuild.git --branch ${release} &&\
@@ -120,9 +126,12 @@ RUN bash -c "mkdir ${PROJECTS_DIR} && cd ${PROJECTS_DIR} &&\
     cd build &&\ 
     source /opt/ros/${ROS_DISTRO}/setup.bash &&\
     cmake .. \
-        -G '$CMAKE_GENERATOR' \
-        -DCMAKE_PREFIX_PATH='/opt/ros/${ROS_DISTRO}:/projects/robotology-superbuild/build/install' \
-        -DCMAKE_INSTALL_PREFIX='/usr/local' \
+        -G \"${CMAKE_GENERATOR}\"\
+        -DGSL_ROOT_DIR=/usr \
+        -DGSL_LIBRARY=/usr/lib/aarch64-linux-gnu/libgsl.so \
+        -DGSL_CBLAS_LIBRARY=/usr/lib/aarch64-linux-gnu/libgslcblas.so \
+        -DCMAKE_PREFIX_PATH=\"/opt/ros/${ROS_DISTRO}:${INSTALL_DIR}\" \
+        -DCMAKE_INSTALL_PREFIX=/usr/local \
         -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
         -DROBOTOLOGY_PROJECT_TAGS=${sbtag} \
         -DROBOTOLOGY_PROJECT_TAGS_CUSTOM=${ROBOTOLOGY_PROJECT_TAGS_CUSTOM} \
@@ -169,7 +178,7 @@ RUN cd /usr/src/librealsense \
     && cmake \
     -DCMAKE_C_FLAGS_RELEASE="${CMAKE_C_FLAGS_RELEASE} -s" \
     -DCMAKE_CXX_FLAGS_RELEASE="${CMAKE_CXX_FLAGS_RELEASE} -s" \
-    -DCMAKE_INSTALL_PREFIX=/opt/librealsense \  
+    -DCMAKE_INSTALL_PREFIX=/opt/librealsense\
     -DCHECK_FOR_UPDATES=OFF \
     -DBUILD_EXAMPLES=OFF \
     -DFORCE_LIBUVC=ON \
@@ -218,7 +227,8 @@ WORKDIR ${PROJECTS_DIR}
 RUN git clone https://github.com/robotology/yarp-device-rplidar.git
 
 WORKDIR ${PROJECTS_DIR}/yarp-device-rplidar
-RUN  mkdir -p build && cd build &&\
+RUN git checkout 5ac4649dcb82076ab0fe5854f054f6595a968aba &&\
+    mkdir -p build && cd build &&\
     cmake .. \
         -DENABLE_rpLidar:BOOL=OFF \
         -DENABLE_rpLidar2:BOOL=OFF \ 

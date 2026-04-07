@@ -22,6 +22,7 @@ jobs:
     steps:
       - id: file_changes
         uses: trilom/file-changes-action@v1.2.4
+
       - name: test_file_changes
         run: |
           cat $HOME/files.json
@@ -32,94 +33,116 @@ jobs:
           echo '${{ steps.file_changes.outputs.files_modified}}'
           echo '${{ steps.file_changes.outputs.files_added}}'
           echo '${{ steps.file_changes.outputs.files_removed}}'
+
       - uses: actions/checkout@v4
-      
+
       - name: Find modified images
         id: set-matrix
-
         run: |
           parsed_list=($(echo '${{ steps.file_changes.outputs.files}}' | tr ',' '\n'))
+
           superbuild_elements=()
-          version_matrix=""
-          custom_matrix=""
+          arm64_elements=()
           superbuild_flag=false
-          custom_flag=false
-              
+          arm64_flag=false
+
           for i in "${parsed_list[@]}"
           do
             folder=$(echo $i | awk -F'/' '{print $1}' | tr -d '"' | tr -d '[' | tr -d ']')
+
             if [ "$folder" == "dockerfile_images" ]
             then
               element=$(echo $i | awk -F'/' '{print $3}' | tr -d '"' | tr -d '[' | tr -d ']')
               image_path=dockerfile_images/$(echo $i | awk -F'/' '{print $2}' | tr -d '"' | tr -d '[' | tr -d ']')
-              element_flag=false
+
+              is_arm64=false
+              is_superbuild=false
+
               while read -r line || [ -n "$line" ]
               do
-                if [ "$line" == "[superbuild]" ]
-                then
-                  superbuild_flag=true
-                  element_flag=true
+                if [ "$line" == "[superbuild]" ]; then
+                  is_superbuild=true
                 fi
-                if [ "$line" == "[arm64]" ]
-                then
-                  element_flag=false  # Skip this image
+                if [ "$line" == "[arm64]" ]; then
+                  is_arm64=true
                 fi
               done < $image_path/$element/conf_build.ini
-              if [[ $element_flag == true ]]
-              then
+
+              if [[ $is_arm64 == true ]]; then
+                arm64_elements+=("$element")
+                arm64_flag=true
+              elif [[ $is_superbuild == true ]]; then
                 superbuild_elements+=("$element")
-              else
-                custom_flag=true
-                custom_matrix="$custom_matrix\"$element\"," # keep as before
+                superbuild_flag=true
               fi
             fi
           done
 
-          # if the superbuild_elements is empty, add at least one standard element so we can always run the job
-          if [[ ${#superbuild_elements[@]} -eq 0 ]] 
-          then
+          # -------------------------------------------------------
+          # Fallback: ensure superbuild matrix always has one element
+          # -------------------------------------------------------
+          if [[ ${#superbuild_elements[@]} -eq 0 ]]; then
             superbuild_elements+=("superbuild")
             parsed_list+=("dockerfile_images/basic/superbuild/Dockerfile")
             superbuild_flag=true
-            element_flag=true
           fi
-          # Deduplicate superbuild_elements
-          unique_superbuild_elements=($(printf "%s\n" "${superbuild_elements[@]}" | sort -u))
+
+          # -------------------------------------------------------
+          # Build JSON matrices (deduplicated)
+          # -------------------------------------------------------
+          unique_superbuild=($(printf "%s\n" "${superbuild_elements[@]}" | sort -u))
           superbuild_matrix_json="["
-          for elem in "${unique_superbuild_elements[@]}"; do
-          superbuild_matrix_json="$superbuild_matrix_json\"$elem\"," 
+          for elem in "${unique_superbuild[@]}"; do
+            superbuild_matrix_json="$superbuild_matrix_json\"$elem\","
           done
-          # Remove trailing comma and close JSON array
           superbuild_matrix_json="${superbuild_matrix_json%,}]"
+
+          unique_arm64=($(printf "%s\n" "${arm64_elements[@]}" | sort -u))
+          arm64_matrix_json="["
+          for elem in "${unique_arm64[@]}"; do
+            arm64_matrix_json="$arm64_matrix_json\"$elem\","
+          done
+          arm64_matrix_json="${arm64_matrix_json%,}]"
+
+          # Avoid empty JSON arrays (would break fromJson)
+          if [[ "$arm64_matrix_json" == "[]" ]]; then
+            arm64_matrix_json='["_placeholder_"]'
+            arm64_flag=false
+          fi
 
           version_matrix="[ \"master\" ]"
 
           echo "superbuild_matrix=$superbuild_matrix_json" >> $GITHUB_OUTPUT
-          echo "superbuild_flag=$superbuild_flag" >> $GITHUB_OUTPUT
-          echo "paths=${parsed_list[@]}" >> $GITHUB_OUTPUT
-          echo "version=$version_matrix" >> $GITHUB_OUTPUT
+          echo "superbuild_flag=$superbuild_flag"          >> $GITHUB_OUTPUT
+          echo "arm64_matrix=$arm64_matrix_json"           >> $GITHUB_OUTPUT
+          echo "arm64_flag=$arm64_flag"                    >> $GITHUB_OUTPUT
+          echo "paths=${parsed_list[@]}"                   >> $GITHUB_OUTPUT
+          echo "version=$version_matrix"                   >> $GITHUB_OUTPUT
 
-          # Check outputs
-          echo "Superbuild Matrix: $superbuild_matrix_json"
-          echo "Superbuild Flag: $superbuild_flag"
-          echo "Paths: ${parsed_list[@]}"
-          echo "Version Matrix: $version_matrix"
-  
+          echo "Superbuild Matrix : $superbuild_matrix_json  (flag=$superbuild_flag)"
+          echo "ARM64 Matrix      : $arm64_matrix_json  (flag=$arm64_flag)"
+          echo "Version Matrix    : $version_matrix"
+
     outputs:
       superbuild_matrix: ${{ steps.set-matrix.outputs.superbuild_matrix }}
-      superbuild_flag: ${{ steps.set-matrix.outputs.superbuild_flag }}
-      paths: ${{ steps.set-matrix.outputs.paths }}
-      version: ${{ steps.set-matrix.outputs.version }}
+      superbuild_flag:   ${{ steps.set-matrix.outputs.superbuild_flag }}
+      arm64_matrix:      ${{ steps.set-matrix.outputs.arm64_matrix }}
+      arm64_flag:        ${{ steps.set-matrix.outputs.arm64_flag }}
+      paths:             ${{ steps.set-matrix.outputs.paths }}
+      version:           ${{ steps.set-matrix.outputs.version }}
 
+  # ==============================================================
+  #  AMD64 VALIDATION  (unchanged logic, kept as-is)
+  # ==============================================================
   validate_superbuild:
     runs-on: [ubuntu-latest]
     needs: check_files
     if: needs.check_files.outputs.superbuild_flag == 'true'
     strategy:
-      matrix: 
-        apps: ${{fromJson(needs.check_files.outputs.superbuild_matrix)}}
-        version: ${{fromJson(needs.check_files.outputs.version)}} 
-        tag: [ Stable, Unstable, Custom ]
+      matrix:
+        apps:    ${{fromJson(needs.check_files.outputs.superbuild_matrix)}}
+        version: ${{fromJson(needs.check_files.outputs.version)}}
+        tag: [Stable, Unstable, Custom]
         exclude:
           - version: master
             tag: Custom
@@ -129,18 +152,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Get path 
+      - name: Get path
         id: get_path
-        run: |            
+        run: |
           for j in ${{needs.check_files.outputs.paths}}
           do
-              if [ $(echo $j | awk '/'"${{matrix.apps}}"'/') ]
-              then
-                  path="dockerfile_images/$(echo $j | awk -F'/' '{print $2}' | tr -d '"')"
-                  echo "PATH=$path" >> $GITHUB_OUTPUT
-                  exit 0
-              fi
-          done  
+            if [ $(echo $j | awk '/'"${{matrix.apps}}"'/') ]
+            then
+              path="dockerfile_images/$(echo $j | awk -F'/' '{print $2}' | tr -d '"')"
+              echo "PATH=$path" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+          done
 
       - name: Get version and tag
         id: get_version
@@ -154,7 +177,6 @@ jobs:
           echo "$(date +'%d/%m/%Y_%H:%M:%S')" > DATE_HOUR
           echo "DATE_HOUR_TAG=$( cat DATE_HOUR)" >> $GITHUB_OUTPUT
 
-
       - name: Get Build Arguments
         id: get_args
         run: |
@@ -167,49 +189,37 @@ jobs:
 
           VERSION="${{ steps.get_version.outputs.VERSION }}"
           TAG="${{ steps.get_version.outputs.TAG }}"
-
+          
           # prepare and escape all replacement values (escape / and &)
           escape() { printf '%s' "$1" | sed 's/[\/&]/\\&/g'; }
 
           VAL_MATRIX_TAG="${{ matrix.tag }}"
           VAL_MATRIX_TAG_ESC=$(escape "$VAL_MATRIX_TAG")
-
           VAL_STEPS_TAG="${{ steps.get_version.outputs.TAG }}"
           VAL_STEPS_TAG_ESC=$(escape "$VAL_STEPS_TAG")
-
           VAL_MATRIX_VERSION="${{ matrix.version }}"
           VAL_MATRIX_VERSION_ESC=$(escape "$VAL_MATRIX_VERSION")
-
           VAL_MATRIX_APPS="${{ matrix.apps }}"
           VAL_MATRIX_APPS_ESC=$(escape "$VAL_MATRIX_APPS")
-
           VAL_STEPS_VERSION="${{ steps.get_version.outputs.VERSION }}"
           VAL_STEPS_VERSION_ESC=$(escape "$VAL_STEPS_VERSION")
-
           VAL_DATE_TAG="${{ steps.get_date.outputs.DATE_HOUR_TAG }}"
           VAL_DATE_TAG_ESC=$(escape "$VAL_DATE_TAG")
-
           VAL_REGISTRY="${{ env.REGISTRY }}"
           VAL_REGISTRY_ESC=$(escape "$VAL_REGISTRY")
-
           VAL_REPO_NAME="${{ env.REPOSITORY_NAME }}"
           VAL_REPO_NAME_ESC=$(escape "$VAL_REPO_NAME")
-
           VAL_IMAGE_PREFIX="${{ env.IMAGE_PREFIX }}"
           VAL_IMAGE_PREFIX_ESC=$(escape "$VAL_IMAGE_PREFIX")
-
           VAL_REPO_OWNER="${{ env.REPOSITORY_OWNER }}"
           VAL_REPO_OWNER_ESC=$(escape "$VAL_REPO_OWNER")
-
           VAL_DEFAULT_USER="${{ env.DEFAULT_USER }}"
           VAL_DEFAULT_USER_ESC=$(escape "$VAL_DEFAULT_USER")
-
           VAL_SUPERBUILD_TAG="${{ env.SUPERBUILD_TAG }}"
           VAL_SUPERBUILD_TAG_ESC=$(escape "$VAL_SUPERBUILD_TAG")
 
           while read -r line || [ -n "$line" ]
           do
-            # use escaped values (safe for sed)
             line=$(printf '%s\n' "$line" > temp.tmp && sed -i "s/{{matrix.tag}}/${VAL_MATRIX_TAG_ESC}/g" temp.tmp && cat temp.tmp)
             line=$(printf '%s\n' "$line" > temp.tmp && sed -i "s/{{steps.get_version.outputs.TAG}}/${VAL_STEPS_TAG_ESC}/g" temp.tmp && cat temp.tmp)
             line=$(printf '%s\n' "$line" > temp.tmp && sed -i "s/{{matrix.version}}/${VAL_MATRIX_VERSION_ESC}/g" temp.tmp && cat temp.tmp)
@@ -223,34 +233,29 @@ jobs:
             line=$(printf '%s\n' "$line" > temp.tmp && sed -i "s/{{env.DEFAULT_USER}}/${VAL_DEFAULT_USER_ESC}/g" temp.tmp && cat temp.tmp)
             line=$(printf '%s\n' "$line" > temp.tmp && sed -i "s/{{env.SUPERBUILD_TAG}}/${VAL_SUPERBUILD_TAG_ESC}/g" temp.tmp && cat temp.tmp)
 
-            if [ "$line" == "[sources]" ]
-            then
-                sources_flag=true
-                tag_flag=false
-                compile_sources=true
+            if [ "$line" == "[sources]" ]; then
+              sources_flag=true
+              tag_flag=false
+              compile_sources=true
             fi
-            if [ "$line" == "[tag]" ]
-            then
-                sources_flag=false
-                tag_flag=true
+            if [ "$line" == "[tag]" ]; then
+              sources_flag=false
+              tag_flag=true
             fi
-            if [ "$line" != "[sources]" ] && [ "$line" != "[binaries]" ] && [ "$line" != "[tag]" ] && [ "$line" != "[superbuild]" ] && [ "$line" != "" ]
-            then
-              if [[ $sources_flag != false ]]
-              then
-                  sources_args="$sources_args --build-arg $line"
+            if [ "$line" != "[sources]" ] && [ "$line" != "[binaries]" ] && [ "$line" != "[tag]" ] && [ "$line" != "[superbuild]" ] && [ "$line" != "" ]; then
+              if [[ $sources_flag != false ]]; then
+                sources_args="$sources_args --build-arg $line"
               fi
-              if [[ $tag_flag != false ]] 
-              then
-                  tag_arg="--tag ${{ env.DEFAULT_USER }}/$line"
-                  img_name="$line"
+              if [[ $tag_flag != false ]]; then
+                tag_arg="--tag ${{ env.DEFAULT_USER }}/$line"
+                img_name="$line"
               fi
             fi
           done < ${{ steps.get_path.outputs.PATH }}/${{matrix.apps}}/conf_build.ini
 
-          echo "SRC_ARGS=$sources_args" >> $GITHUB_OUTPUT
-          echo "TAG_ARGS=$tag_arg" >> $GITHUB_OUTPUT
-          echo "IMG_NAME=$img_name" >> $GITHUB_OUTPUT
+          echo "SRC_ARGS=$sources_args"  >> $GITHUB_OUTPUT
+          echo "TAG_ARGS=$tag_arg"       >> $GITHUB_OUTPUT
+          echo "IMG_NAME=$img_name"      >> $GITHUB_OUTPUT
           echo "CMPL_SRC=$compile_sources" >> $GITHUB_OUTPUT
 
       - name: Build Docker sources images
@@ -261,3 +266,145 @@ jobs:
             --no-cache ${{ steps.get_path.outputs.PATH }}/${{matrix.apps}} \
             --file ${{ steps.get_path.outputs.PATH }}/${{matrix.apps}}/Dockerfile \
             ${{ steps.get_args.outputs.TAG_ARGS }}_sources
+
+  # ==============================================================
+  #  ARM64 VALIDATION  (build only, no push)
+  #
+  #  Runner note:
+  #    " GitHub-hosted arm64:  ubuntu-22.04-arm
+  #      (available on Team/Enterprise or via larger runners)
+  #    " Self-hosted arm64:    [self-hosted, linux, arm64]
+  #  Change the `runs-on` value below to match your setup.
+  # ==============================================================
+  validate_arm64:
+    # �� CHANGE THIS to [self-hosted, linux, arm64] if you use your own runner
+    runs-on: ubuntu-22.04-arm
+    needs: check_files
+    if: needs.check_files.outputs.arm64_flag == 'true'
+    strategy:
+      matrix:
+        apps:    ${{fromJson(needs.check_files.outputs.arm64_matrix)}}
+        version: ${{fromJson(needs.check_files.outputs.version)}}
+        tag: [Stable, Unstable, Custom]
+        exclude:
+          - version: master
+            tag: Custom
+      fail-fast: false
+      max-parallel: 2   # arm64 runners are often fewer; tune as needed
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get path
+        id: get_path
+        run: |
+          for j in ${{needs.check_files.outputs.paths}}
+          do
+            if [ $(echo $j | awk '/'"${{matrix.apps}}"'/') ]
+            then
+              path="dockerfile_images/$(echo $j | awk -F'/' '{print $2}' | tr -d '"')"
+              echo "PATH=$path" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+          done
+
+      - name: Get version and tag
+        id: get_version
+        run: |
+          echo "VERSION=${{matrix.version}}" >> $GITHUB_OUTPUT
+          echo "TAG=$(echo -${{matrix.tag}} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Get date hour tag
+        id: get_date
+        run: |
+          echo "$(date +'%d/%m/%Y_%H:%M:%S')" > DATE_HOUR
+          echo "DATE_HOUR_TAG=$(cat DATE_HOUR)" >> $GITHUB_OUTPUT
+
+      - name: Get Build Arguments (arm64)
+        id: get_args
+        run: |
+          sources_args=""
+          tag_arg=""
+          img_name=""
+          sources_flag=false
+          tag_flag=false
+          compile_sources=false
+
+          escape() { printf '%s' "$1" | sed 's/[\/&]/\\&/g'; }
+
+          VAL_MATRIX_TAG="${{ matrix.tag }}"
+          VAL_MATRIX_TAG_ESC=$(escape "$VAL_MATRIX_TAG")
+          VAL_STEPS_TAG="${{ steps.get_version.outputs.TAG }}"
+          VAL_STEPS_TAG_ESC=$(escape "$VAL_STEPS_TAG")
+          VAL_MATRIX_VERSION="${{ matrix.version }}"
+          VAL_MATRIX_VERSION_ESC=$(escape "$VAL_MATRIX_VERSION")
+          VAL_MATRIX_APPS="${{ matrix.apps }}"
+          VAL_MATRIX_APPS_ESC=$(escape "$VAL_MATRIX_APPS")
+          VAL_STEPS_VERSION="${{ steps.get_version.outputs.VERSION }}"
+          VAL_STEPS_VERSION_ESC=$(escape "$VAL_STEPS_VERSION")
+          VAL_DATE_TAG="${{ steps.get_date.outputs.DATE_HOUR_TAG }}"
+          VAL_DATE_TAG_ESC=$(escape "$VAL_DATE_TAG")
+          VAL_REGISTRY="${{ env.REGISTRY }}"
+          VAL_REGISTRY_ESC=$(escape "$VAL_REGISTRY")
+          VAL_REPO_NAME="${{ env.REPOSITORY_NAME }}"
+          VAL_REPO_NAME_ESC=$(escape "$VAL_REPO_NAME")
+          VAL_IMAGE_PREFIX="${{ env.IMAGE_PREFIX }}"
+          VAL_IMAGE_PREFIX_ESC=$(escape "$VAL_IMAGE_PREFIX")
+          VAL_REPO_OWNER="${{ env.REPOSITORY_OWNER }}"
+          VAL_REPO_OWNER_ESC=$(escape "$VAL_REPO_OWNER")
+          VAL_DEFAULT_USER="${{ env.DEFAULT_USER }}"
+          VAL_DEFAULT_USER_ESC=$(escape "$VAL_DEFAULT_USER")
+          VAL_SUPERBUILD_TAG="${{ env.SUPERBUILD_TAG }}"
+          VAL_SUPERBUILD_TAG_ESC=$(escape "$VAL_SUPERBUILD_TAG")
+
+          while read -r line || [ -n "$line" ]
+          do
+            line=$(printf '%s\n' "$line" > temp.tmp && sed -i "s/{{matrix.tag}}/${VAL_MATRIX_TAG_ESC}/g" temp.tmp && cat temp.tmp)
+            line=$(printf '%s\n' "$line" > temp.tmp && sed -i "s/{{steps.get_version.outputs.TAG}}/${VAL_STEPS_TAG_ESC}/g" temp.tmp && cat temp.tmp)
+            line=$(printf '%s\n' "$line" > temp.tmp && sed -i "s/{{matrix.version}}/${VAL_MATRIX_VERSION_ESC}/g" temp.tmp && cat temp.tmp)
+            line=$(printf '%s\n' "$line" > temp.tmp && sed -i "s/{{matrix.apps}}/${VAL_MATRIX_APPS_ESC}/g" temp.tmp && cat temp.tmp)
+            line=$(printf '%s\n' "$line" > temp.tmp && sed -i "s/{{steps.get_version.outputs.VERSION}}/${VAL_STEPS_VERSION_ESC}/g" temp.tmp && cat temp.tmp)
+            line=$(printf '%s\n' "$line" > temp.tmp && sed -i "s/{{steps.get_date.outputs.DATE_HOUR_TAG}}/${VAL_DATE_TAG_ESC}/g" temp.tmp && cat temp.tmp)
+            line=$(printf '%s\n' "$line" > temp.tmp && sed -i "s/{{env.REGISTRY}}/${VAL_REGISTRY_ESC}/g" temp.tmp && cat temp.tmp)
+            line=$(printf '%s\n' "$line" > temp.tmp && sed -i "s@{{env.REPOSITORY_NAME}}@${VAL_REPO_NAME_ESC}@g" temp.tmp && cat temp.tmp)
+            line=$(printf '%s\n' "$line" > temp.tmp && sed -i "s/{{env.IMAGE_PREFIX}}/${VAL_IMAGE_PREFIX_ESC}/g" temp.tmp && cat temp.tmp)
+            line=$(printf '%s\n' "$line" > temp.tmp && sed -i "s/{{env.REPOSITORY_OWNER}}/${VAL_REPO_OWNER_ESC}/g" temp.tmp && cat temp.tmp)
+            line=$(printf '%s\n' "$line" > temp.tmp && sed -i "s/{{env.DEFAULT_USER}}/${VAL_DEFAULT_USER_ESC}/g" temp.tmp && cat temp.tmp)
+            line=$(printf '%s\n' "$line" > temp.tmp && sed -i "s/{{env.SUPERBUILD_TAG}}/${VAL_SUPERBUILD_TAG_ESC}/g" temp.tmp && cat temp.tmp)
+
+            if [ "$line" == "[sources]" ]; then
+              sources_flag=true
+              tag_flag=false
+              compile_sources=true
+            fi
+            if [ "$line" == "[tag]" ]; then
+              sources_flag=false
+              tag_flag=true
+            fi
+            if [ "$line" != "[sources]" ] && [ "$line" != "[binaries]" ] && [ "$line" != "[tag]" ] && \
+               [ "$line" != "[superbuild]" ] && [ "$line" != "[arm64]" ] && [ "$line" != "" ]; then
+              if [[ $sources_flag != false ]]; then
+                sources_args="$sources_args --build-arg $line"
+              fi
+              if [[ $tag_flag != false ]]; then
+                tag_arg="--tag ${{ env.DEFAULT_USER }}/$line"
+                img_name="$line"
+              fi
+            fi
+          done < ${{ steps.get_path.outputs.PATH }}/${{matrix.apps}}/conf_build.ini
+
+          echo "SRC_ARGS=$sources_args"    >> $GITHUB_OUTPUT
+          echo "TAG_ARGS=$tag_arg"         >> $GITHUB_OUTPUT
+          echo "IMG_NAME=$img_name"        >> $GITHUB_OUTPUT
+          echo "CMPL_SRC=$compile_sources" >> $GITHUB_OUTPUT
+
+      - name: Build ARM64 Docker image (no push)
+        id: build-arm64
+        if: steps.get_args.outputs.CMPL_SRC == 'true'
+        run: |
+          docker build ${{ steps.get_args.outputs.SRC_ARGS }} \
+            --no-cache ${{ steps.get_path.outputs.PATH }}/${{matrix.apps}} \
+            --file ${{ steps.get_path.outputs.PATH }}/${{matrix.apps}}/Dockerfile \
+            ${{ steps.get_args.outputs.TAG_ARGS }}_sources
+          # Note: no `--push` flag. this is a validation build only.
+          # The image is built locally on the arm64 runner and discarded.
