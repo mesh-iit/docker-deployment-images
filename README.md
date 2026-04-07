@@ -11,6 +11,7 @@ The main goal is to significantly **accelerate development and testing cycles** 
 * **Automatic Updates:** Images are automatically rebuilt under the following conditions:
     1.  Every two weeks (bi-weekly schedule).
     2.  Immediately, whenever a Dockerfile in this repository is updated.
+    3.  Every [release]([url](https://github.com/orgs/robotology/discussions))
 * **Faster Iteration:** By using these images, developers can bypass lengthy compilation steps and focus directly on application logic and testing.
 
 ## Contribution and Feedback
