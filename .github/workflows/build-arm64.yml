@@ -24,6 +24,7 @@ jobs:
         image:
           - superbuild-nvdia-arm-raicam
           # Add more images here
+        tag: [Stable, Unstable]
       fail-fast: false
     
     permissions:
@@ -51,22 +52,35 @@ jobs:
           REPOSITORY_OWNER="${{ github.repository_owner }}"
           IMAGE_NAME="${{ env.REGISTRY }}/$REPOSITORY_OWNER/${{ matrix.image }}"
           VERSION="${{ github.ref_name }}"
-          [[ "$VERSION" == "master" || "$VERSION" == "main" ]] && VERSION="latest"
+          TAG="$(echo "-${{ matrix.tag }}" | tr '[:upper:]' '[:lower:]')"
           
           echo "image=$IMAGE_NAME" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "metadata=$(date +'%d/%m/%Y_%H:%M:%S')" >> $GITHUB_OUTPUT
 
       - name: Build and push ARM64 image
+        id: build-push
         uses: docker/build-push-action@v5
         with:
           context: ./dockerfile_images/basic/${{ matrix.image }}
           file: ./dockerfile_images/basic/${{ matrix.image }}/Dockerfile
           push: ${{ github.event.inputs.push_to_registry == 'true' }}
           tags: |
-            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}
-            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.sha_short }}
-          cache-from: type=registry,ref=${{ steps.meta.outputs.image }}:buildcache
-          cache-to: type=registry,ref=${{ steps.meta.outputs.image }}:buildcache,mode=max
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}${{ steps.meta.outputs.tag }}_sources
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           build-args: |
             START_IMG=nvcr.io/nvidia/l4t-jetpack:r36.4.0
+            release=${{ steps.meta.outputs.version }}
+            sbtag=${{ matrix.tag }}
+            metadata=${{ steps.meta.outputs.metadata }}
+
+      - name: Clean untagged Ghcr.io images
+        if: ${{ github.event.inputs.push_to_registry == 'true' && steps.build-push.outcome == 'success' }}
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ matrix.image }}
+          package-type: container
+          min-versions-to-keep: 0
+          delete-only-untagged-versions: 'true'
