@@ -575,6 +575,7 @@ jobs:
 
         - name: Clean untagged Ghcr.io images
           if: ${{ !cancelled() && (steps.push-sources-ghcr.outcome == 'success' || steps.push-binaries-ghcr.outcome == 'success') }}
+          continue-on-error: true
           uses: actions/delete-package-versions@v5
           with:
             package-name: ${{ env.REPOSITORY_NAME }}/${{ env.IMAGE_PREFIX }}${{ steps.get_args.outputs.PACKAGE_NAME }}
@@ -845,6 +846,7 @@ jobs:
 
         - name: Clean untagged Ghcr.io images
           if: ${{ !cancelled() && (steps.push-sources-ghcr.outcome == 'success' || steps.push-binaries-ghcr.outcome == 'success') }}
+          continue-on-error: true
           uses: actions/delete-package-versions@v5
           with:
             package-name: ${{ env.REPOSITORY_NAME }}/${{ env.IMAGE_PREFIX }}${{ steps.get_args.outputs.PACKAGE_NAME }}
