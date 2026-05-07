@@ -291,6 +291,9 @@ jobs:
 
     build_push:
       runs-on: [ubuntu-latest]
+      permissions:
+        contents: read
+        packages: write
       needs: check_files
       if: needs.check_files.outputs.superbuild_flag == 'true'
       strategy:
@@ -499,6 +502,7 @@ jobs:
                 then
                     tag_arg="--tag ${{env.DEFAULT_USER}}/\"$line"
                     img_name="\"$line"
+                    package_name="${line%%:*}"
                 fi
               fi
             done < ${{ steps.get_path.outputs.PATH }}/${{matrix.apps}}/conf_build.ini
@@ -508,6 +512,7 @@ jobs:
             echo "BIN_ARGS=$binaries_args" >> $GITHUB_OUTPUT
             echo "TAG_ARGS=$tag_arg" >> $GITHUB_OUTPUT
             echo "IMG_NAME=$img_name" >> $GITHUB_OUTPUT
+            echo "PACKAGE_NAME=$package_name" >> $GITHUB_OUTPUT
             echo "CMPL_SRC=$compile_sources" >> $GITHUB_OUTPUT
             echo "CMPL_BIN=$compile_binaries" >> $GITHUB_OUTPUT
             echo "demos_matrix=${demos_matrix[@]}" >> $GITHUB_OUTPUT
@@ -568,6 +573,16 @@ jobs:
           if: steps.get_args.outputs.CMPL_BIN == 'true'
           run: docker push ${{ env.REGISTRY }}/${{ env.REPOSITORY_NAME }}/${{ env.IMAGE_PREFIX }}${{ steps.get_args.outputs.IMG_NAME }}_binaries"
 
+        - name: Clean untagged Ghcr.io images
+          if: ${{ !cancelled() && (steps.push-sources-ghcr.outcome == 'success' || steps.push-binaries-ghcr.outcome == 'success') }}
+          continue-on-error: true
+          uses: actions/delete-package-versions@v5
+          with:
+            package-name: ${{ env.REPOSITORY_NAME }}/${{ env.IMAGE_PREFIX }}${{ steps.get_args.outputs.PACKAGE_NAME }}
+            package-type: container
+            min-versions-to-keep: 0
+            delete-only-untagged-versions: 'true'
+
         # - name: Trigger testing pipeline for source image
         #   if: steps.build-sources.outcome == 'success' && steps.push-sources.outcome == 'success' && steps.get_args.outputs.demos_flag_output == 'true' && ! cancelled()
         #   uses: peter-evans/repository-dispatch@v3
@@ -593,6 +608,9 @@ jobs:
 
     build_push_custom:
       runs-on: [ubuntu-latest]
+      permissions:
+        contents: read
+        packages: write
       needs: check_files
       if: needs.check_files.outputs.custom_flag == 'true'
       strategy:
@@ -755,6 +773,7 @@ jobs:
                 then
                     tag_arg="--tag ${{env.DEFAULT_USER}}/\"$line"
                     img_name="\"$line"
+                    package_name="${line%%:*}"
                 fi
               fi
             done < ${{ steps.get_path.outputs.PATH }}/${{matrix.apps}}/conf_build.ini
@@ -764,6 +783,7 @@ jobs:
             echo "BIN_ARGS=$binaries_args" >> $GITHUB_OUTPUT
             echo "TAG_ARGS=$tag_arg" >> $GITHUB_OUTPUT
             echo "IMG_NAME=$img_name" >> $GITHUB_OUTPUT
+            echo "PACKAGE_NAME=$package_name" >> $GITHUB_OUTPUT
             echo "CMPL_SRC=$compile_sources" >> $GITHUB_OUTPUT
             echo "CMPL_BIN=$compile_binaries" >> $GITHUB_OUTPUT
             echo "demos_matrix=${demos_matrix[@]}" >> $GITHUB_OUTPUT
@@ -823,6 +843,16 @@ jobs:
           id: push-binaries-ghcr
           if: steps.get_args.outputs.CMPL_BIN == 'true'
           run: docker push ${{ env.REGISTRY }}/${{ env.REPOSITORY_NAME }}/${{ env.IMAGE_PREFIX }}${{ steps.get_args.outputs.IMG_NAME }}_binaries"
+
+        - name: Clean untagged Ghcr.io images
+          if: ${{ !cancelled() && (steps.push-sources-ghcr.outcome == 'success' || steps.push-binaries-ghcr.outcome == 'success') }}
+          continue-on-error: true
+          uses: actions/delete-package-versions@v5
+          with:
+            package-name: ${{ env.REPOSITORY_NAME }}/${{ env.IMAGE_PREFIX }}${{ steps.get_args.outputs.PACKAGE_NAME }}
+            package-type: container
+            min-versions-to-keep: 0
+            delete-only-untagged-versions: 'true'
 
     trigger_children_build:
       runs-on: [ubuntu-latest]
