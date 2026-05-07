@@ -24,6 +24,9 @@ jobs:
   cleanup:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Clean untagged GHCR package versions
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -84,6 +87,12 @@ jobs:
 
             echo "Inspecting package: $package_name"
 
+            if ! untagged_version_list=$(gh api --paginate "$versions_endpoint" \
+              --jq '.[] | select(((.metadata.container.tags // []) | length) == 0) | [.id, .name] | @tsv'); then
+              echo "::warning::Failed to list versions for $package_name"
+              continue
+            fi
+
             while IFS=$'\t' read -r version_id version_name; do
               if [ -z "$version_id" ]; then
                 continue
@@ -101,13 +110,17 @@ jobs:
               else
                 echo "::warning::Failed to delete $package_name version $version_id"
               fi
-            done < <(
-              gh api --paginate "$versions_endpoint" \
-                --jq '.[] | select(((.metadata.container.tags // []) | length) == 0) | [.id, .name] | @tsv'
-            )
+            done <<< "$untagged_version_list"
           done < <(
-            gh api --paginate "$api_base/packages?package_type=container" \
-              --jq '.[].name'
+            {
+              find dockerfile_images -mindepth 3 -maxdepth 3 -name conf_build.ini \
+                -printf '%h\n' | while IFS= read -r image_dir; do
+                  echo "$REPOSITORY/cd_$(basename "$image_dir")"
+                done
+              for arm64_package in $ARM64_PACKAGES; do
+                echo "$arm64_package"
+              done
+            } | sort -u
           )
 
           echo "Packages inspected: $total_packages"
