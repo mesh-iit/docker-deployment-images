@@ -578,7 +578,8 @@ jobs:
           continue-on-error: true
           uses: actions/delete-package-versions@v5
           with:
-            package-name: ${{ env.REPOSITORY_NAME }}/${{ env.IMAGE_PREFIX }}${{ steps.get_args.outputs.PACKAGE_NAME }}
+            owner: ${{ env.REPOSITORY_OWNER }}
+            package-name: ${{ github.event.repository.name }}/${{ env.IMAGE_PREFIX }}${{ steps.get_args.outputs.PACKAGE_NAME }}
             package-type: container
             min-versions-to-keep: 0
             delete-only-untagged-versions: 'true'
@@ -849,7 +850,8 @@ jobs:
           continue-on-error: true
           uses: actions/delete-package-versions@v5
           with:
-            package-name: ${{ env.REPOSITORY_NAME }}/${{ env.IMAGE_PREFIX }}${{ steps.get_args.outputs.PACKAGE_NAME }}
+            owner: ${{ env.REPOSITORY_OWNER }}
+            package-name: ${{ github.event.repository.name }}/${{ env.IMAGE_PREFIX }}${{ steps.get_args.outputs.PACKAGE_NAME }}
             package-type: container
             min-versions-to-keep: 0
             delete-only-untagged-versions: 'true'
